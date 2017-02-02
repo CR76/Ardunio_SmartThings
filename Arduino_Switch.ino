@@ -3,6 +3,7 @@
 #define HarV 0x00
 
 
+
 char AI[8] = {0x7E,0x00,0x04,0x08,0x21,0x41,0x49,0x4C};                 //create AT command to querey network joined?
 char MY[8] = {0x7E,0x00,0x04,0x08,0x21,0x4D,0x59,0x30};                 //create AT command to get my network ID.
 char SL[8] = {0x7E,0x00,0x04,0x08,0x21,0x53,0x4C,0x37};                 //create AT command to get 64bit LSB.
@@ -15,8 +16,9 @@ int check = 0;
 boolean Network_Joined = false;
 
 void setup() {
+pinMode(13, OUTPUT); 
 Serial.begin(9600); 
-pinMode(LED_BUILTIN, OUTPUT);  
+ 
 
 while (Network_Joined == false){
   Packet_Send(AI);
@@ -65,24 +67,23 @@ int Length = 0;
     Packet[0] = Current_Byte;
     while (Serial.available() == 0);
     Packet[1] = Serial.read();
-    Serial.print("Length: ");
+    //Serial.print("Length: ");
     while (Serial.available() == 0);
-    Serial.print( Packet[1]);
+    //Serial.print( Packet[1]);
     Packet[2] = Serial.read();
     Length = Packet[2];
     //Serial.print("Length: ");
-    Serial.print(Length);
+    //Serial.print(Length);
     for ( x = 0; x < (Length); x++){
       delay(10);
       Packet[(x+3)] = Serial.read();
-      Serial.print(Packet[(x+3)], HEX);
-      //Serial.print(x+3);
+      //Serial.print(Packet[(x+3)], HEX);
       checksum = (checksum + Packet[(x+3)]);
     }
     Packet[(x+3)] = Serial.read();
     //Serial.print(Packet[(x+3)], HEX);
     checksum = (0xFF - (checksum & 0xFF));
-    Serial.print(checksum, HEX);
+    //Serial.print(checksum, HEX);
     if (Packet[x+3] == checksum){
       Serial.print("Good");
       Packet_Type();
@@ -114,7 +115,7 @@ void Packet_Type() {
             Serial.print("Clu Basic");
             Cluster_Basic();                                             //Process Cluster Basic request.
         }
-        else if (Packet[14] ==0x06){                                    //Else if packet profile is not = 06.
+        else if (Packet[17] == 0x06){                                    //Else if packet profile is not = 06.
             On_Off();                                                    //Process On/Off.
         }
         else{
@@ -364,6 +365,7 @@ void Cluster_Basic(){
 
 void On_Off(){
 
+    Serial.print("on/off");
     char Command_ID = Packet[23];                                                          //Set command ID to 0.
     char Sequence_Number = Packet[22];                                                     //Set seqence number to 0.
     char Frame_Type = Packet[21];                   //Get frame type from payload.
@@ -377,9 +379,12 @@ void On_Off(){
     for(int x = 0; x < 10 ; x ++){
       ST_Address[x] =  Packet[x+4];
     }
+    
     memset(Buffer, 0, sizeof(Buffer));                                  //Clear array.
 
     if ((Frame_Type == 0x00) && (Command_ID == 0x00) && (Attribute_ID[1] == 0x00)){     //If Command to check status is sent.
+      Serial.print("read");
+      Serial.print(digitalRead(13));
       Buffer[0] = 0x18;                                                   //Frame control direction is server to client.
       Buffer[1] = Sequence_Number;                                                 //Reply with seqence number from request.
       Buffer[2] = 0x01;                                                   //Command indetifier = 1, Read attribute response.
@@ -387,38 +392,41 @@ void On_Off(){
       Buffer[4] = 0x00;
       Buffer[5] = 0x00;                                                   //Status 00 = success.
       Buffer[6] = 0x10;                                                   //Attribute data type 10 = boolean.
-      Buffer[7] = digitalRead(LED_BUILTIN);                                                    //Read LED state.
-      PBuild(Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x08);
+      Buffer[7] = digitalRead(13);                                                    //Read LED state.
+      PBuild(ST_Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x08);
     }
     
     if ((Frame_Type == 0x01) && (Command_ID == 0x00) && (Attribute_ID[1] == 0x00)){     //command to turn off LED.
-      digitalWrite(LED_BUILTIN, LOW);                                                            //Turn LED off.
+      Serial.print("LED OFF");
+      digitalWrite(13, LOW);                                                            //Turn LED off.
       Buffer[0] = 0x18;                                                   //Frame control direction is server to client.
       Buffer[1] = Sequence_Number;                                                 //Reply with seqence number from request.
       Buffer[2] = 0x0B;                                                   //Command identifier 0x08 = default response.
       Buffer[3] = Command_ID;                                                  //reply with the command ID sne to you.
       Buffer[4] = 0x00;                                                   //Send sucess 00
-      PBuild(Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
+      PBuild(ST_Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
     }
     
     if ((Frame_Type == 0x01) && (Command_ID == 0x01) && (Attribute_ID[1] == 0x00)){     //Command to turn on LED.
-      digitalWrite(LED_BUILTIN, HIGH);                                                       //Turn LED on.
+      Serial.print("LED ON");
+      digitalWrite(13, HIGH);                                                       //Turn LED on.
       Buffer[0] = 0x18;                                                   //Frame control direction is server to client.
       Buffer[1] = Sequence_Number;                                                 //Reply with seqence number from request.
       Buffer[2] = 0x0B;                                                   //Command identifier 0x08 = default response.
       Buffer[3] = Command_ID;                                                  //reply with the command ID sne to you.
       Buffer[4] = 0x00;                                                   //Send sucess 00
-      PBuild(Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
+      PBuild(ST_Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
     }
     
     if ((Frame_Type == 0x01) && (Command_ID == 0x02) && (Attribute_ID[1] == 0x00)){     //Command to toggle LED.
-      digitalWrite(LED_BUILTIN, HIGH);                                                     //Toggle LED
+      Serial.print("LED Toggle");
+      digitalWrite(13, HIGH);                                                     //Toggle LED
       Buffer[0] = 0x18;                                                   //Frame control direction is server to client.
       Buffer[1] = Sequence_Number;                                                 //Reply with seqence number from request.
       Buffer[2] = 0x0B;                                                   //Command identifier 0x08 = default response.
       Buffer[3] = Command_ID;                                                  //reply with the command ID sne to you.
       Buffer[4] = 0x00;                                                   //Send sucess 00
-      PBuild(Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
+      PBuild(ST_Address,Packet[15],Packet[14],Profile,Cluster, Buffer, 0x05);                   //Send to packet builder.
     }
 }
 
@@ -432,10 +440,11 @@ void Packet_Send(char API_Packet[]){
     delay(10);
     y ++;
   }
-  y = 0;
+  /*y = 0;
   Packet_Length = (API_Packet[2] + 4);                                       //Calaculate packet length using packet length identifier and add the start byte, 2 byte length and checksum.
   while (y < Packet_Length){                                                 //Send the command
     Serial.print(API_Packet[y],HEX);
     y ++;
-  }
+  }*/
 }
+
